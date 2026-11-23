@@ -7,11 +7,17 @@ import { createApp } from '@sf/app';
 import { provisionTenant } from '../modules/tenancy/provision.ts';
 
 export interface Harness { app: App; clock: FakeClock; store: MemoryStore; logs: string[]; config: AppConfig }
+const openMongo: { close(): Promise<void> }[] = [];
 export async function makeApp(over: Partial<AppConfig> = {}, start = '2026-11-10T06:00:00Z'): Promise<Harness> {
   const clock = new FakeClock(Date.parse(start)); const logs: string[] = [];
   // TEST_STORE=mongo runs the same suite against a real MongoDB replica set (a fresh database per test).
   let store: MemoryStore;
-  if (process.env.TEST_STORE === 'mongo') { const { MongoStore } = await import('../modules/kernel/mongo-store.ts'); store = (await MongoStore.connect(process.env.MONGO_URL ?? 'mongodb://localhost:27017/?directConnection=true', `sf360_test_${Date.now()}_${Math.floor(Math.random() * 1e6)}`)) as unknown as MemoryStore; }
+  if (process.env.TEST_STORE === 'mongo') {
+    const { MongoStore } = await import('../modules/kernel/mongo-store.ts');
+    store = (await MongoStore.connect(process.env.MONGO_URL ?? 'mongodb://localhost:27017/?directConnection=true', `sf360_test_${Date.now()}_${Math.floor(Math.random() * 1e6)}`)) as unknown as MemoryStore;
+    if (!openMongo.length) { const { after } = await import('node:test'); after(async () => { for (const s of openMongo.splice(0)) await s.close().catch(() => {}); }); } // open clients kept the test process alive forever
+    openMongo.push(store);
+  }
   else store = new MemoryStore();
   const config = testConfig({ runWorkerInProcess: false, logLevel: 'info', ...over });
   const app = await createApp({ config, store, clock, logSink: (l) => logs.push(l) });

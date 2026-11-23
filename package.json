@@ -30,7 +30,7 @@
         "load": "tsx tests/load/ingest-load.ts",
         "verify": "npm run typecheck && npm run typecheck:web && npm run lint:terms && npm run lint:boundaries && npm test && npm run build:web && npm run openapi && npm run trace",
         "secrets": "tsx scripts/secrets.ts",
-        "test:mongo": "TEST_STORE=mongo tsx --test --test-concurrency=1 tests/integration/journeys.test.ts",
+        "test:mongo": "TEST_STORE=mongo tsx --test --test-concurrency=1 --test-force-exit tests/integration/journeys.test.ts",
         "verify:restore": "tsx scripts/verify-restore.ts",
         "test:mobile-core": "tsx --test tests/unit/mobile-core.test.ts",
         "typecheck:web:offline": "tsc -p apps/web/tsconfig.sandbox.json --noEmit",
