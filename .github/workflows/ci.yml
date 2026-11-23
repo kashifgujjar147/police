@@ -3,17 +3,31 @@ on: [push, pull_request]
 jobs:
   verify:
     runs-on: ubuntu-latest
-    services:
-      mongo: { image: mongo:7, ports: ["27017:27017"], options: "--health-cmd \"mongosh --eval 'db.runCommand({ping:1})'\" --health-interval 5s" }
+    timeout-minutes: 30          # never hang (Railway "Wait for CI" waits for this job to finish)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
-      - run: npm ci || npm install   # no lockfile is shipped; commit one after the first install
+      - run: npm ci || npm install
+        timeout-minutes: 10
       - run: npm run verify                    # typecheck, lints, all tests, web build, trace
+        timeout-minutes: 15
       - run: npm run typecheck:web
+        timeout-minutes: 5
       - run: npm audit --audit-level=critical   # FR-NFR-005: fail on critical known vulnerabilities
+        timeout-minutes: 5
       - run: npx playwright install --with-deps chromium && npm run test:e2e:web
+        timeout-minutes: 10
         env: { CHROME_PATH: "" }
+      # The Mongo store uses transactions, which need a replica set (a standalone container makes the test wait forever).
+      - name: Start MongoDB 7 as a single-node replica set
+        timeout-minutes: 5
+        run: |
+          docker run -d --name mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 60); do docker exec mongo mongosh --quiet --eval 'db.runCommand({ping:1}).ok' >/dev/null 2>&1 && break; sleep 2; done
+          docker exec mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
+          for i in $(seq 1 60); do docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' | grep -q true && break; sleep 2; done
+          docker exec mongo mongosh --quiet --eval 'printjson(db.hello().setName)'
       - run: npm run test:mongo
+        timeout-minutes: 10
         env: { MONGO_URL: "mongodb://localhost:27017/?directConnection=true" }
