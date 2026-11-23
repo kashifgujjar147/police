@@ -2,7 +2,7 @@
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { type Locale, dirOf } from '@sf/i18n';
-import { ApiError, connectStream, get, patch, post, refresh, session, setTenant, type StreamStatus } from './api.ts';
+import { ApiError, connectStream, get, patch, post, refresh, session, setPlatformHint, setTenant, type StreamStatus } from './api.ts';
 import { Ctx, Form, type Me, Modal, Secret, makeT, useApp } from './ui.tsx';
 import { Alerts, Attendance, CommandCentre, DutySummary, Help, IncidentDetail, Incidents, MyData, Notifications, Overview, Planner, Reports } from './ops.tsx';
 import { Account, Audit, Devices, Organisation, Platform, Privacy, Roles, Settings, Sites, Staff } from './admin.tsx';
@@ -32,7 +32,7 @@ function AuthScreens({ locale, setLocale, onSignedIn }: { locale: Locale; setLoc
   const mfaPost = (platform: boolean, path: string, body: unknown) => (platform ? guard(post(path, body), true) : post(path, body));
   const emailField = { name: 'email', label: t('auth.email'), type: 'email' as const, required: true, autoComplete: 'username', ltr: true, requiredMessage: t('auth.emailRequired'), validate: (x: string) => (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(x.trim()) ? null : t('auth.emailInvalid')) };
   const ctx = { me: { tenant: { timezone: 'UTC', digitStyle: 'western' } } as any, locale, setLocale, t, fmt: { locale, timezone: 'UTC' }, can: () => false, toast: () => {}, labels: {}, go: () => {} };
-  const finish = (r: any, platform = false) => { if (r.oneTimeRecoveryCodes?.length) { setStep({ kind: 'codes', codes: r.oneTimeRecoveryCodes, r, platform }); return; } session.token = r.accessToken; session.platform = platform; onSignedIn(platform); };
+  const finish = (r: any, platform = false) => { if (r.oneTimeRecoveryCodes?.length) { setStep({ kind: 'codes', codes: r.oneTimeRecoveryCodes, r, platform }); return; } session.token = r.accessToken; session.platform = platform; setPlatformHint(platform); onSignedIn(platform); };
   useEffect(() => { // email verification and password reset links
     if (hash.startsWith('#/verify-email')) void post('/auth/verify-email', { tenant: params.get('tenant'), token: params.get('token') }).then(() => setMsg('✓'), (e) => setMsg(e.message));
   }, []);
@@ -42,7 +42,7 @@ function AuthScreens({ locale, setLocale, onSignedIn }: { locale: Locale; setLoc
   else if (step?.kind === 'mfa') body = <><p>{t('auth.mfaHelp')}</p><Form submit={t('auth.continue')} fields={[{ name: 'code', label: t('auth.mfaCode'), required: true, autoComplete: 'one-time-code', ltr: true }]} onSubmit={async (v) => finish(await mfaPost(!!step.platform, step.platform ?'/platform/auth/mfa/verify' : '/auth/mfa/verify', { ...(step.platform ? {} : { tenant: session.tenant }), challengeToken: step.challengeToken, code: v.code }), step.platform)} /></>;
   else if (step?.kind === 'enrol') body = <><h2>{t('auth.mfaSetup')}</h2><p>{t('auth.mfaSetupHelp')}</p><Secret label={t('auth.mfaSecret')} value={step.secret} /><p className="small mono" style={{ wordBreak: 'break-all' }}>{step.uri}</p>
     <Form submit={t('auth.continue')} fields={[{ name: 'code', label: t('auth.mfaCode'), required: true, autoComplete: 'one-time-code', ltr: true }]} onSubmit={async (v) => finish(await mfaPost(!!step.platform, step.platform ?'/platform/auth/mfa/verify' : '/auth/mfa/confirm', { ...(step.platform ? {} : { tenant: session.tenant }), challengeToken: step.challengeToken, code: v.code }), step.platform)} /></>;
-  else if (step?.kind === 'codes') body = <><h2>{t('auth.recoveryCodes')}</h2><p>{t('auth.recoveryHelp')}</p><Secret label={t('auth.recoveryCodes')} value={step.codes.join('  ')} /><button className="primary" onClick={() => { session.token = step.r.accessToken; onSignedIn(false); }}>{t('auth.continue')}</button></>;
+  else if (step?.kind === 'codes') body = <><h2>{t('auth.recoveryCodes')}</h2><p>{t('auth.recoveryHelp')}</p><Secret label={t('auth.recoveryCodes')} value={step.codes.join('  ')} /><button className="primary" onClick={() => { session.token = step.r.accessToken; setPlatformHint(false); onSignedIn(false); }}>{t('auth.continue')}</button></>;
   else if (mode === 'activate') body = <Form submit={t('auth.activate')} initial={{ tenant: params.get('tenant') ?? session.tenant, code: params.get('code') ?? '' }} fields={[{ name: 'tenant', label: t('auth.organisation'), required: true, ltr: true }, { name: 'code', label: t('auth.activationCode'), required: true, ltr: true }, { name: 'password', label: t('auth.newPassword'), type: 'password', required: true, help: t('auth.passwordHelp'), autoComplete: 'new-password' }]}
     onSubmit={async (v) => { const r = await post('/auth/activate', v); setTenant(v.tenant); setMsg(`${t('auth.activated')} ${t('staff.username')}: ${r.username}`); setMode('login'); location.hash = '#/'; }} />;
   else if (mode === 'forgot') body = <><p className="small">{t('auth.forgotHelp')}</p><Form submit={t('auth.sendLink')} initial={{ tenant: session.tenant }} fields={[{ name: 'tenant', label: t('auth.organisation'), required: true, ltr: true }, { name: 'identifier', label: t('auth.identifier'), required: true, ltr: true }]} onSubmit={async (v) => { const r = await post('/auth/password/forgot', v); setMsg(r.message); setMode('login'); }} /></>;
@@ -174,8 +174,8 @@ function App() {
   const setLocale = (l: Locale) => { setLocaleState(l); try { localStorage.setItem('sf.locale', l); } catch { /* ignore */ } if (phase === 'in') void patch('/auth/me', { locale: l }).catch(() => {}); };
   useEffect(() => { document.documentElement.lang = locale; document.documentElement.dir = dirOf(locale); }, [locale]);
   const loadMe = async () => { try { const m = await get<Me>('/auth/me'); setMe(m); setPhase('in'); } catch (e) { if (e instanceof ApiError && e.status !== 401) throw e; setPhase('out'); } };
-  useEffect(() => { session.onSignedOut = () => { setMe(null); setPhase('out'); }; void refresh().then((ok) => (ok ? loadMe() : setPhase('out'))); }, []);
-  const signOut = async () => { const wasPlatform = session.platform; try { await post(wasPlatform ? '/platform/auth/logout' : '/auth/logout'); } catch { /* ignore */ } session.token = null; session.platform = false; setMe(null); location.hash = wasPlatform ? '#/platform' : '#/'; setPhase('out'); }; // platform staff return to the platform sign-in
+  useEffect(() => { session.onSignedOut = () => { setMe(null); setPhase('out'); }; void refresh().then((ok) => (!ok ? setPhase('out') : session.platform ? setPhase('platform') : loadMe())); }, []);
+  const signOut = async () => { const wasPlatform = session.platform; try { await post(wasPlatform ? '/platform/auth/logout' : '/auth/logout'); } catch { /* ignore */ } session.token = null; session.platform = false; setPlatformHint(false); setMe(null); location.hash = wasPlatform ? '#/platform' : '#/'; setPhase('out'); }; // platform staff return to the platform sign-in
   if (phase === 'boot') return <div className="state">…</div>;
   if (phase === 'out') return <AuthScreens locale={locale} setLocale={setLocale} onSignedIn={(p) => { if (/^#\/(login|platform|activate|reset|verify-email)/.test(location.hash)) location.hash = '#/'; return p ? setPhase('platform') : void loadMe(); }} />; // sign-in routes are not app pages
   if (phase === 'platform') return <PlatformShell locale={locale} setLocale={setLocale} onSignOut={() => void signOut()} />;

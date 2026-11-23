@@ -5,17 +5,28 @@ import { base32Encode, verifyTotp } from '@sf/domain/node';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { App, AppError, Ctx, type Doc, Reply, type Route, created, deepMerge, paginate, randomToken, s, sha256, signJwt } from '@sf/kernel';
+import { App, AppError, Ctx, type Doc, Reply, type Route, created, deepMerge, paginate, parseCookies, randomToken, s, sha256, signJwt } from '@sf/kernel';
 import { checkPasswordPolicy, isPrivileged, revokeSessions } from '../identity/index.ts';
 import { ensurePlans, planLimits, provisionTenant, usageCounts } from './provision.ts';
 
 const NEUTRAL = 'The sign-in details are not correct.';
 const tenantView = (t: Doc) => ({ id: t._id, name: t.name, slug: t.slug, status: t.status, planKey: t.planKey, timezone: t.timezone, defaultLocale: t.defaultLocale, isDemo: !!t.isDemo, createdAt: t.createdAt, suspendedAt: t.suspendedAt ?? null, deletionScheduledAt: t.deletionScheduledAt ?? null, deletionCertificate: t.deletionCertificate ?? null, version: t.version });
 
-async function platformTokens(ctx: Ctx, user: Doc) {
-  const now = ctx.now(); const session = await ctx.app.store.insert('platform_sessions', { userId: user._id, tokenHash: sha256(randomToken(32)), createdAt: now, expiresAt: now + 12 * 3600000, revokedAt: null, ip: ctx.ip });
+// Web portal: the platform access token lives in memory; an HttpOnly refresh cookie (scoped to /platform/auth) restores the
+// session after a page reload, until the session's 12 h absolute expiry, logout, or revocation (deactivate, 2FA reset).
+const P_REFRESH = 'sf_prefresh', P_CSRF = 'sf_pcsrf';
+function platformCookies(ctx: Ctx, refreshToken: string, csrf: string, maxAgeSec: number) {
+  const secure = ctx.app.config.cookieSecure ? '; Secure' : '';
+  return [`${P_REFRESH}=${refreshToken}; HttpOnly; SameSite=Strict; Path=/api/v1/platform/auth; Max-Age=${maxAgeSec}${secure}`, `${P_CSRF}=${csrf}; SameSite=Strict; Path=/; Max-Age=${maxAgeSec}${secure}`];
+}
+async function platformTokens(ctx: Ctx, user: Doc, existing?: Doc, csrf = randomToken(16)) {
+  const now = ctx.now(); const refreshToken = randomToken(32);
+  const session = existing
+    ? (await ctx.app.store.updateOne('platform_sessions', { _id: existing._id }, { $set: { tokenHash: sha256(refreshToken), lastUsedAt: now } }))!
+    : await ctx.app.store.insert('platform_sessions', { userId: user._id, tokenHash: sha256(refreshToken), createdAt: now, expiresAt: now + 12 * 3600000, revokedAt: null, ip: ctx.ip });
   const iat = Math.floor(now / 1000);
-  return { mfaRequired: false, accessToken: signJwt({ typ: 'platform', sub: user._id, sid: session._id, iat, exp: iat + 900 * 4 }, ctx.app.signingKey), expiresIn: 3600, user: { id: user._id, email: user.email, platformRoles: user.platformRoles } };
+  const body = { mfaRequired: false, accessToken: signJwt({ typ: 'platform', sub: user._id, sid: session._id, iat, exp: iat + 900 * 4 }, ctx.app.signingKey), expiresIn: 3600, user: { id: user._id, email: user.email, platformRoles: user.platformRoles } };
+  return new Reply(200, body, { 'Set-Cookie': platformCookies(ctx, refreshToken, csrf, Math.max(0, Math.floor((session.expiresAt - now) / 1000))) });
 }
 async function platformChallenge(ctx: Ctx, token: string) {
   const ch = await ctx.app.store.findOne('platform_sessions', { tokenHash: sha256(token), kind: 'challenge' });
@@ -206,7 +217,19 @@ const platformRoutes: Route[] = [
   { method: 'GET', path: '/platform/auth/me', permission: 'platform-session', scope: 'platform', audit: { none: 'own profile read' }, rate: 'read', summary: 'Platform user profile',
     async handler(ctx) { return { id: ctx.actor.userId, platformRoles: ctx.actor.platformRoles, permissions: [...ctx.actor.permissions], demoMode: ctx.app.config.demoMode }; } },
   { method: 'POST', path: '/platform/auth/logout', permission: 'platform-session', scope: 'platform', audit: 'platform.auth.logout', rate: 'mutation', summary: 'End the platform session', body: s.object({}),
-    async handler(ctx) { await ctx.app.store.updateOne('platform_sessions', { _id: ctx.actor.sessionId }, { $set: { revokedAt: ctx.now() } }); return { ok: true }; } },
+    async handler(ctx) { await ctx.app.store.updateOne('platform_sessions', { _id: ctx.actor.sessionId }, { $set: { revokedAt: ctx.now() } }); return new Reply(200, { ok: true }, { 'Set-Cookie': platformCookies(ctx, '', '', 0) }); } },
+  { method: 'POST', path: '/platform/auth/refresh', permission: 'public', scope: 'none', audit: { none: 'routine platform token rotation' }, rate: 'public', tx: false,
+    summary: 'Web portal: restore the platform session after a page reload (HttpOnly refresh cookie + CSRF header); rotates the cookie', reqs: ['FR-AUTH-004'], body: s.object({}),
+    async handler(ctx, { req }) {
+      const cookies = parseCookies(req.headers['cookie']); const token = cookies[P_REFRESH];
+      if (!token) throw new AppError('UNAUTHENTICATED', 'Sign in to continue.');
+      if (!cookies[P_CSRF] || cookies[P_CSRF] !== req.headers['x-csrf-token']) throw new AppError('FORBIDDEN', 'The request could not be verified. Reload the page and try again.');
+      const session = await ctx.app.store.findOne('platform_sessions', { tokenHash: sha256(token) });
+      const user = session && !session.kind && !session.revokedAt && session.expiresAt > ctx.now() ? await ctx.app.store.findOne('platform_users', { _id: session.userId }) : null;
+      if (!session || !user || user.status !== 'active') throw new AppError('UNAUTHENTICATED', 'Your session has ended. Sign in again.');
+      ctx.app.rate.take('refresh', session._id);
+      return platformTokens(ctx, user, session, cookies[P_CSRF]);
+    } },
   // ---------- Platform account management (own password; other admins: list, activate/deactivate, 2FA reset, unlock) ----------
   { method: 'POST', path: '/platform/auth/password', permission: 'platform-session', scope: 'platform', audit: 'platform.user.password', rate: 'login', summary: 'Change your own platform password (current password required); other sessions are signed out', reqs: ['FR-AUTH-002'],
     body: s.object({ currentPassword: s.string({ min: 1, max: 200, trim: false }), newPassword: s.string({ min: 1, max: 200, trim: false }) }),

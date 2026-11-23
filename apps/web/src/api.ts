@@ -7,11 +7,17 @@ try { session.tenant = localStorage.getItem('sf.tenant') ?? ''; } catch { /* sto
 export function setTenant(slug: string) { session.tenant = slug; try { localStorage.setItem('sf.tenant', slug); } catch { /* ignore */ } }
 const cookie = (name: string) => document.cookie.split('; ').find((c) => c.startsWith(name + '='))?.split('=')[1] ?? '';
 
+// Remembers (not a secret) whether the last sign-in on this browser was Platform staff, so a page reload restores the right session.
+let platformHint = false;
+try { platformHint = localStorage.getItem('sf.platform') === '1'; } catch { /* storage unavailable */ }
+export function setPlatformHint(on: boolean) { platformHint = on; try { if (on) localStorage.setItem('sf.platform', '1'); else localStorage.removeItem('sf.platform'); } catch { /* ignore */ } }
+
 let refreshing: Promise<boolean> | null = null;
 export function refresh(): Promise<boolean> {
-  if (session.platform || !session.tenant) return Promise.resolve(false);
-  refreshing ??= fetch('/api/v1/auth/refresh', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': cookie('sf_csrf') }, body: JSON.stringify({ tenant: session.tenant }) })
-    .then(async (r) => { if (!r.ok) return false; session.token = (await r.json()).accessToken; return true; }).catch(() => false).finally(() => { refreshing = null; });
+  const platform = session.platform || (!session.token && platformHint);
+  if (!platform && !session.tenant) return Promise.resolve(false);
+  refreshing ??= fetch(platform ? '/api/v1/platform/auth/refresh' : '/api/v1/auth/refresh', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': cookie(platform ? 'sf_pcsrf' : 'sf_csrf') }, body: JSON.stringify(platform ? {} : { tenant: session.tenant }) })
+    .then(async (r) => { if (!r.ok) return false; session.token = (await r.json()).accessToken; session.platform = platform; return true; }).catch(() => false).finally(() => { refreshing = null; });
   return refreshing;
 }
 export async function api<T = any>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}, retry = true): Promise<T> {

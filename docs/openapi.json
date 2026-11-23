@@ -2062,6 +2062,61 @@
     }
    }
   },
+  "/api/v1/platform/auth/refresh": {
+   "post": {
+    "summary": "Web portal: restore the platform session after a page reload (HttpOnly refresh cookie + CSRF header); rotates the cookie",
+    "tags": [
+     "tenancy"
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+       }
+      }
+     }
+    },
+    "security": [],
+    "x-permission": "public",
+    "x-scope": "none",
+    "x-audit": {
+     "none": "routine platform token rotation"
+    },
+    "x-rate-class": "public",
+    "x-device-bound": false,
+    "x-requirements": [
+     "FR-AUTH-004"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "$ref": "#/components/responses/Error"
+     },
+     "403": {
+      "$ref": "#/components/responses/Error"
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "429": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
   "/api/v1/platform/auth/password": {
    "post": {
     "summary": "Change your own platform password (current password required); other sessions are signed out",
