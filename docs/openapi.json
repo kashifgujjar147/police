@@ -2062,6 +2062,423 @@
     }
    }
   },
+  "/api/v1/platform/auth/password": {
+   "post": {
+    "summary": "Change your own platform password (current password required); other sessions are signed out",
+    "tags": [
+     "tenancy"
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+         "currentPassword": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+         },
+         "newPassword": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+         }
+        },
+        "required": [
+         "currentPassword",
+         "newPassword"
+        ]
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "x-permission": "platform-session",
+    "x-scope": "platform",
+    "x-audit": "platform.user.password",
+    "x-rate-class": "login",
+    "x-device-bound": false,
+    "x-requirements": [
+     "FR-AUTH-002"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "$ref": "#/components/responses/Error"
+     },
+     "403": {
+      "$ref": "#/components/responses/Error"
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "429": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/v1/platform/users": {
+   "get": {
+    "summary": "Platform accounts with status, roles, 2FA and lock state",
+    "tags": [
+     "tenancy"
+    ],
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "x-permission": "platform.user.manage",
+    "x-scope": "platform",
+    "x-audit": {
+     "none": "platform account list (no secrets)"
+    },
+    "x-rate-class": "read",
+    "x-device-bound": false,
+    "x-requirements": [
+     "FR-AUTH-006"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "$ref": "#/components/responses/Error"
+     },
+     "403": {
+      "$ref": "#/components/responses/Error"
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "429": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/v1/platform/users/{id}/deactivate": {
+   "post": {
+    "summary": "Deactivate another platform account (signs it out; never yourself or the last active Super Admin)",
+    "tags": [
+     "tenancy"
+    ],
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+         "reason": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 300
+         }
+        },
+        "required": [
+         "reason"
+        ]
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "x-permission": "platform.user.manage",
+    "x-scope": "platform",
+    "x-audit": "platform.user.deactivate",
+    "x-rate-class": "mutation",
+    "x-device-bound": false,
+    "x-requirements": [
+     "FR-AUTH-003"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "$ref": "#/components/responses/Error"
+     },
+     "403": {
+      "$ref": "#/components/responses/Error"
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "429": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/v1/platform/users/{id}/activate": {
+   "post": {
+    "summary": "Re-activate a platform account",
+    "tags": [
+     "tenancy"
+    ],
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+         "reason": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 300
+         }
+        },
+        "required": [
+         "reason"
+        ]
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "x-permission": "platform.user.manage",
+    "x-scope": "platform",
+    "x-audit": "platform.user.activate",
+    "x-rate-class": "mutation",
+    "x-device-bound": false,
+    "x-requirements": [
+     "FR-AUTH-003"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "$ref": "#/components/responses/Error"
+     },
+     "403": {
+      "$ref": "#/components/responses/Error"
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "429": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/v1/platform/users/{id}/mfa-reset": {
+   "post": {
+    "summary": "Reset another admin's 2FA after a lost phone (they set it up again at next sign-in)",
+    "tags": [
+     "tenancy"
+    ],
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+         "reason": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 300
+         }
+        },
+        "required": [
+         "reason"
+        ]
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "x-permission": "platform.user.manage",
+    "x-scope": "platform",
+    "x-audit": "platform.user.mfa_reset",
+    "x-rate-class": "mutation",
+    "x-device-bound": false,
+    "x-requirements": [
+     "FR-AUTH-003"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "$ref": "#/components/responses/Error"
+     },
+     "403": {
+      "$ref": "#/components/responses/Error"
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "429": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/v1/platform/users/{id}/unlock": {
+   "post": {
+    "summary": "Unlock a platform account locked by failed sign-ins",
+    "tags": [
+     "tenancy"
+    ],
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+         "reason": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 300
+         }
+        },
+        "required": [
+         "reason"
+        ]
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "x-permission": "platform.user.manage",
+    "x-scope": "platform",
+    "x-audit": "platform.user.unlock",
+    "x-rate-class": "mutation",
+    "x-device-bound": false,
+    "x-requirements": [
+     "FR-AUTH-003"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "$ref": "#/components/responses/Error"
+     },
+     "403": {
+      "$ref": "#/components/responses/Error"
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "429": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
   "/api/v1/platform/tenants": {
    "get": {
     "summary": "Tenant list: state, plan and usage metadata only",
@@ -7254,7 +7671,8 @@
           "type": "string",
           "enum": [
            "android",
-           "ios"
+           "ios",
+           "web"
           ]
          },
          "osVersion": {

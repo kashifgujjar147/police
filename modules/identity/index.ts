@@ -1,5 +1,5 @@
 // Identity & Access: sign-in, MFA, sessions, activation, password reset (PRD §8.1; TS §6).
-import { BREACHED_PASSWORDS, mfaBypassActive } from '@sf/config';
+import { BREACHED_PASSWORDS, mfaBypassActive, mfaLoginSkipped } from '@sf/config';
 import { PRIVILEGED_ROLES } from '@sf/permissions';
 import { base32Encode, verifyTotp } from '@sf/domain/node';
 import { randomBytes } from 'node:crypto';
@@ -128,10 +128,11 @@ const routes: Route[] = [
         deviceId = device._id;
       }
       const meta = { deviceId, client: body.client ?? 'web', userAgent: req.headers['user-agent'] };
-      // Local development only (NODE_ENV=development + AUTH_MFA_REQUIRED=false): password-only sign-in.
+      // Password-only sign-in: local development bypass, or AUTH_MFA_LOGIN_DISABLED=true (see @sf/config mfaLoginSkipped).
       // Password, status, lockout, membership and device checks above still apply; MFA factors are left untouched.
-      if (mfaBypassActive(ctx.app.config)) {
-        await ctx.audit({ action: 'auth.login.dev_mfa_bypass', resource: { type: 'user', id: user._id }, reason: 'development_only' });
+      if (mfaLoginSkipped(ctx.app.config)) {
+        const dev = mfaBypassActive(ctx.app.config);
+        await ctx.audit({ action: dev ? 'auth.login.dev_mfa_bypass' : 'auth.login.mfa_disabled', resource: { type: 'user', id: user._id }, reason: dev ? 'development_only' : 'AUTH_MFA_LOGIN_DISABLED' });
         return completeLogin(ctx, user, meta);
       }
       const factor = await ctx.col('mfa_factors').findOne({ userId: user._id });
@@ -202,9 +203,9 @@ const routes: Route[] = [
       const user = (await ctx.col('users').update(ch.userId, { $set: { mfaEnabled: true } }))!;
       await ctx.col('login_challenges').update(ch._id, { $set: { usedAt: ctx.now() } });
       ctx.setAudit({ resource: { type: 'user', id: user._id } });
-      if (ch.meta.existingSession) return { recoveryCodes: codes.plain };
+      if (ch.meta.existingSession) return { oneTimeRecoveryCodes: codes.plain }; // not 'recoveryCodes': that key is stripped from responses (stored hashes)
       await ctx.audit({ action: 'auth.mfa.enabled', resource: { type: 'user', id: user._id } });
-      return completeLogin(ctx, user, ch.meta, { recoveryCodes: codes.plain });
+      return completeLogin(ctx, user, ch.meta, { oneTimeRecoveryCodes: codes.plain });
     },
   },
   {

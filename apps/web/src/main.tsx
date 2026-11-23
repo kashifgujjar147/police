@@ -6,6 +6,8 @@ import { ApiError, connectStream, get, patch, post, refresh, session, setTenant,
 import { Ctx, Form, type Me, Modal, Secret, makeT, useApp } from './ui.tsx';
 import { Alerts, Attendance, CommandCentre, DutySummary, Help, IncidentDetail, Incidents, MyData, Notifications, Overview, Planner, Reports } from './ops.tsx';
 import { Account, Audit, Devices, Organisation, Platform, Privacy, Roles, Settings, Sites, Staff } from './admin.tsx';
+import { MyDuty } from './field.tsx';
+import { InstallButton, registerPwa } from './pwa.tsx';
 
 const initialLocale = (): Locale => { try { const s = localStorage.getItem('sf.locale'); if (s === 'en' || s === 'ar') return s; } catch { /* ignore */ } return navigator.language.startsWith('ar') ? 'ar' : 'en'; };
 const useHash = () => { const [h, set] = useState(location.hash || '#/'); useEffect(() => { const f = () => set(location.hash || '#/'); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []); return h; };
@@ -30,7 +32,7 @@ function AuthScreens({ locale, setLocale, onSignedIn }: { locale: Locale; setLoc
   const mfaPost = (platform: boolean, path: string, body: unknown) => (platform ? guard(post(path, body), true) : post(path, body));
   const emailField = { name: 'email', label: t('auth.email'), type: 'email' as const, required: true, autoComplete: 'username', ltr: true, requiredMessage: t('auth.emailRequired'), validate: (x: string) => (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(x.trim()) ? null : t('auth.emailInvalid')) };
   const ctx = { me: { tenant: { timezone: 'UTC', digitStyle: 'western' } } as any, locale, setLocale, t, fmt: { locale, timezone: 'UTC' }, can: () => false, toast: () => {}, labels: {}, go: () => {} };
-  const finish = (r: any, platform = false) => { if (r.recoveryCodes) { setStep({ kind: 'codes', codes: r.recoveryCodes, r, platform }); return; } session.token = r.accessToken; session.platform = platform; onSignedIn(platform); };
+  const finish = (r: any, platform = false) => { if (r.oneTimeRecoveryCodes?.length) { setStep({ kind: 'codes', codes: r.oneTimeRecoveryCodes, r, platform }); return; } session.token = r.accessToken; session.platform = platform; onSignedIn(platform); };
   useEffect(() => { // email verification and password reset links
     if (hash.startsWith('#/verify-email')) void post('/auth/verify-email', { tenant: params.get('tenant'), token: params.get('token') }).then(() => setMsg('✓'), (e) => setMsg(e.message));
   }, []);
@@ -69,7 +71,7 @@ function AuthScreens({ locale, setLocale, onSignedIn }: { locale: Locale; setLoc
       if (!r.mfaRequired) return finish(r);
       if (r.enrolmentRequired) { const e = await post('/auth/mfa/enroll', { tenant: v.tenant, challengeToken: r.challengeToken }); setStep({ kind: 'enrol', challengeToken: r.challengeToken, secret: e.secret, uri: e.otpauthUri }); } else setStep({ kind: 'mfa', challengeToken: r.challengeToken });
     }} />;
-  return <Ctx.Provider value={ctx}><main className="login" id="main"><div className="card">{lang}<h1>{t('app.name')}</h1><p className="muted">{mode === 'platform' ? t('auth.platform') : t('app.tagline')}</p>{msg && <div className="notice" role="status">{msg}</div>}{body}
+  return <Ctx.Provider value={ctx}><main className="login" id="main"><div className="card">{lang}<div className="row end"><InstallButton t={t} /></div><h1>{t('app.name')}</h1><p className="muted">{mode === 'platform' ? t('auth.platform') : t('app.tagline')}</p>{msg && <div className="notice" role="status">{msg}</div>}{body}
     {!step && (mode === 'platform' || mode === 'platformRegister') && <div className="row" style={{ marginTop: 12, justifyContent: 'space-between' }}>
       {mode === 'platform' ? <button className="link" onClick={() => { setMsg(''); setMode('platformRegister'); location.hash = '#/platform/register'; }}>{t('auth.createAccount')}</button>
         : <button className="link" onClick={() => { setMsg(''); setMode('platform'); location.hash = '#/platform'; }}>{t('auth.signIn')}</button>}
@@ -79,6 +81,7 @@ function AuthScreens({ locale, setLocale, onSignedIn }: { locale: Locale; setLoc
 
 interface NavItem { path: string; key: string; need?: string | string[]; group: 'ops' | 'admin' }
 const NAV: NavItem[] = [
+  { path: '/duty', key: 'nav.myDuty', need: 'duty.own', group: 'ops' },
   { path: '/', key: 'nav.overview', need: 'dashboard.read', group: 'ops' }, { path: '/command', key: 'nav.command', need: 'location.live.read', group: 'ops' }, { path: '/alerts', key: 'nav.alerts', need: 'alert.read', group: 'ops' },
   { path: '/incidents', key: 'nav.incidents', need: ['incident.read', 'incident.create'], group: 'ops' }, { path: '/planner', key: 'nav.planner', need: 'assignment.read', group: 'ops' }, { path: '/attendance', key: 'nav.attendance', need: 'attendance.read', group: 'ops' }, { path: '/reports', key: 'nav.reports', need: ['report.read', 'report.incident.read'], group: 'ops' },
   { path: '/staff', key: 'nav.staff', need: 'staff.read', group: 'admin' }, { path: '/devices', key: 'nav.devices', need: 'device.read', group: 'admin' }, { path: '/organisation', key: 'nav.organisation', need: 'unit.read', group: 'admin' }, { path: '/sites', key: 'nav.sites', need: 'post.read', group: 'admin' },
@@ -111,7 +114,8 @@ function Shell({ me, locale, setLocale, onSignOut }: { me: Me; locale: Locale; s
   const visible = NAV.filter((n) => !n.need || (Array.isArray(n.need) ? n.need.some(can) : can(n.need)));
   const route = () => {
     const m = (re: RegExp) => re.exec(path)?.[1];
-    if (path === '/') return can('dashboard.read') ? <Overview live={live} /> : <MyData />;
+    if (path === '/') return can('dashboard.read') ? <Overview live={live} /> : can('duty.own') ? <MyDuty live={live} /> : <MyData />;
+    if (path === '/duty') return <MyDuty live={live} />;
     if (path === '/command') return <CommandCentre live={live} tile={tile} />;
     if (path === '/alerts') return <Alerts live={live} />;
     if (path === '/incidents') return <Incidents live={live} />;
@@ -140,7 +144,7 @@ function Shell({ me, locale, setLocale, onSignOut }: { me: Me; locale: Locale; s
       <div className="top">{me.demoMode && <div className="banner demo" role="note">{t('app.demo')}</div>}
       {status === 'offline' && <div className="banner offline" role="status">{t('common.offline')}</div>}
       {sos.length > 0 && <div className="banner sos" role="alert">{t('inc.sosBanner', { name: sos[0].reporterName ?? '' })} · {sos[0].number}<button onClick={() => { location.hash = `#/incidents/${sos[0].id}`; }}>{t('inc.open')}</button>{sos.length > 1 && <span>+{sos.length - 1}</span>}</div>}
-      <header className="topbar"><span className="brand">{t('app.name')}</span><span className="small">{me.tenant.name}</span><span className="spacer" />
+      <header className="topbar"><span className="brand">{t('app.name')}</span><span className="small">{me.tenant.name}</span><span className="spacer" /><InstallButton t={t} />
         <span className="small" role="status" aria-live="polite">{status === 'live' ? `● ${t('common.connected')}` : status === 'reconnecting' ? `◌ ${t('common.reconnecting')}` : status === 'offline' ? `◌ ${t('common.disconnected')}` : '…'}</span>
         <a href="#/notifications" style={{ color: '#fff' }}>{t('nav.notifications')}{unread > 0 && ` (${unread})`}</a>
         <label htmlFor="lang2" className="sr">{t('common.language')}</label><select id="lang2" style={{ width: 'auto' }} value={locale} onChange={(e: any) => setLocale(e.target.value)}><option value="en">English</option><option value="ar">العربية</option></select>
@@ -162,7 +166,7 @@ function beep() { try { const a = new AudioContext(); const o = a.createOscillat
 function PlatformShell({ locale, setLocale, onSignOut }: { locale: Locale; setLocale(l: Locale): void; onSignOut(): void }) {
   const t = useMemo(() => makeT(locale), [locale]); const [toasts, setToasts] = useState<string[]>([]);
   const ctx = { me: { tenant: { timezone: 'UTC', digitStyle: 'western', name: '', slug: '' }, permissions: [], roles: [] } as any, locale, setLocale, t, fmt: { locale, timezone: 'UTC' as string }, can: () => true, toast: (m: string) => { setToasts((x) => [...x, m]); setTimeout(() => setToasts((x) => x.slice(1)), 4000); }, labels: {}, go: () => {} };
-  return <Ctx.Provider value={ctx}><div className="shell" style={{ gridTemplateColumns: '1fr' }}><header className="topbar"><span className="brand">{t('nav.platform')}</span><span className="spacer" /><select style={{ width: 'auto' }} value={locale} onChange={(e: any) => setLocale(e.target.value)} aria-label={t('common.language')}><option value="en">English</option><option value="ar">العربية</option></select><button onClick={onSignOut}>{t('common.signOut')}</button></header><main className="main" id="main"><Platform /></main></div><div className="toast">{toasts.map((x, i) => <div key={i}>{x}</div>)}</div></Ctx.Provider>;
+  return <Ctx.Provider value={ctx}><div className="shell" style={{ gridTemplateColumns: '1fr' }}><header className="topbar"><span className="brand">{t('nav.platform')}</span><span className="spacer" /><InstallButton t={t} /><select style={{ width: 'auto' }} value={locale} onChange={(e: any) => setLocale(e.target.value)} aria-label={t('common.language')}><option value="en">English</option><option value="ar">العربية</option></select><button onClick={onSignOut}>{t('common.signOut')}</button></header><main className="main" id="main"><Platform /></main></div><div className="toast">{toasts.map((x, i) => <div key={i}>{x}</div>)}</div></Ctx.Provider>;
 }
 
 function App() {
@@ -173,8 +177,9 @@ function App() {
   useEffect(() => { session.onSignedOut = () => { setMe(null); setPhase('out'); }; void refresh().then((ok) => (ok ? loadMe() : setPhase('out'))); }, []);
   const signOut = async () => { const wasPlatform = session.platform; try { await post(wasPlatform ? '/platform/auth/logout' : '/auth/logout'); } catch { /* ignore */ } session.token = null; session.platform = false; setMe(null); location.hash = wasPlatform ? '#/platform' : '#/'; setPhase('out'); }; // platform staff return to the platform sign-in
   if (phase === 'boot') return <div className="state">…</div>;
-  if (phase === 'out') return <AuthScreens locale={locale} setLocale={setLocale} onSignedIn={(p) => (p ? setPhase('platform') : void loadMe())} />;
+  if (phase === 'out') return <AuthScreens locale={locale} setLocale={setLocale} onSignedIn={(p) => { if (/^#\/(login|platform|activate|reset|verify-email)/.test(location.hash)) location.hash = '#/'; return p ? setPhase('platform') : void loadMe(); }} />; // sign-in routes are not app pages
   if (phase === 'platform') return <PlatformShell locale={locale} setLocale={setLocale} onSignOut={() => void signOut()} />;
   return <Shell me={me!} locale={locale} setLocale={setLocale} onSignOut={() => void signOut()} />;
 }
+registerPwa();
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

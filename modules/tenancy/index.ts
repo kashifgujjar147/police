@@ -1,5 +1,5 @@
 // Tenancy & Platform: platform console, tenant lifecycle, settings, support grants, subscription (PRD §7, §8.18–8.20; TS §9.2).
-import { BREACHED_PASSWORDS, mfaBypassActive } from '@sf/config';
+import { BREACHED_PASSWORDS, mfaBypassActive, mfaLoginSkipped } from '@sf/config';
 import { DEFAULT_SETTINGS, PLATFORM_BOUNDS, TenantMachine, type TenantStatus } from '@sf/contracts';
 import { base32Encode, verifyTotp } from '@sf/domain/node';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -120,11 +120,11 @@ const platformRoutes: Route[] = [
       if (user.status !== 'active') { ctx.setAudit({ action: 'platform.auth.login.inactive' }); throw new AppError('FORBIDDEN', 'This account is not active. Ask another Platform Super Admin to reactivate it.'); }
       ctx.setAudit({ action: 'platform.auth.password_ok' });
 
-      // Local development only (NODE_ENV=development + AUTH_MFA_REQUIRED=false; see @sf/config mfaBypassActive).
-      // Production and every other environment always follow the normal MFA challenge flow.
-      if (mfaBypassActive(ctx.app.config)) {
+      // Password-only sign-in: local development bypass, or AUTH_MFA_LOGIN_DISABLED=true (see @sf/config mfaLoginSkipped).
+      // Lockout above, and setup/invitation codes for new accounts, are unaffected.
+      if (mfaLoginSkipped(ctx.app.config)) {
         await ctx.app.store.updateOne('platform_users', { _id: user._id }, { $set: { failedLogins: 0, lastLoginAt: ctx.now() } });
-        ctx.setAudit({ action: 'platform.auth.login.success.dev_mfa_bypass', resource: { type: 'platform_user', id: user._id } });
+        ctx.setAudit({ action: mfaBypassActive(ctx.app.config) ? 'platform.auth.login.success.dev_mfa_bypass' : 'platform.auth.login.success.mfa_disabled', resource: { type: 'platform_user', id: user._id } });
         return platformTokens(ctx, user);
       }
 
@@ -207,6 +207,46 @@ const platformRoutes: Route[] = [
     async handler(ctx) { return { id: ctx.actor.userId, platformRoles: ctx.actor.platformRoles, permissions: [...ctx.actor.permissions], demoMode: ctx.app.config.demoMode }; } },
   { method: 'POST', path: '/platform/auth/logout', permission: 'platform-session', scope: 'platform', audit: 'platform.auth.logout', rate: 'mutation', summary: 'End the platform session', body: s.object({}),
     async handler(ctx) { await ctx.app.store.updateOne('platform_sessions', { _id: ctx.actor.sessionId }, { $set: { revokedAt: ctx.now() } }); return { ok: true }; } },
+  // ---------- Platform account management (own password; other admins: list, activate/deactivate, 2FA reset, unlock) ----------
+  { method: 'POST', path: '/platform/auth/password', permission: 'platform-session', scope: 'platform', audit: 'platform.user.password', rate: 'login', summary: 'Change your own platform password (current password required); other sessions are signed out', reqs: ['FR-AUTH-002'],
+    body: s.object({ currentPassword: s.string({ min: 1, max: 200, trim: false }), newPassword: s.string({ min: 1, max: 200, trim: false }) }),
+    async handler(ctx, { body }) {
+      const user = (await ctx.app.store.findOne('platform_users', { _id: ctx.actor.userId }))!; ctx.setAudit({ resource: { type: 'platform_user', id: user._id } });
+      if (!(await ctx.app.hasher.verify(body.currentPassword, user.passwordHash))) throw new AppError('VALIDATION_FAILED', 'Please correct the highlighted fields.', { fieldErrors: [{ path: 'currentPassword', code: 'WRONG', message: 'is not correct' }] });
+      const errs = platformPasswordErrors(body.newPassword).map((e) => ({ ...e, path: 'newPassword' }));
+      if (body.newPassword === body.currentPassword) errs.push({ path: 'newPassword', code: 'SAME', message: 'must be different from the current password' });
+      if (errs.length) throw new AppError('VALIDATION_FAILED', 'Please correct the highlighted fields.', { fieldErrors: errs });
+      await ctx.app.store.updateOne('platform_users', { _id: user._id }, { $set: { passwordHash: await ctx.app.hasher.hash(body.newPassword), passwordChangedAt: ctx.now(), failedLogins: 0, lockedUntil: null } });
+      await ctx.app.store.updateMany('platform_sessions', { userId: user._id, revokedAt: null, _id: { $ne: ctx.actor.sessionId } }, { $set: { revokedAt: ctx.now() } });
+      return { ok: true };
+    } },
+  { method: 'GET', path: '/platform/users', permission: 'platform.user.manage', scope: 'platform', audit: { none: 'platform account list (no secrets)' }, rate: 'read', summary: 'Platform accounts with status, roles, 2FA and lock state', reqs: ['FR-AUTH-006'],
+    async handler(ctx) {
+      return { items: (await ctx.app.store.find('platform_users', {})).sort((a, b) => String(a.email).localeCompare(String(b.email))).map((u) => ({ id: u._id, email: u.email, status: u.status, platformRoles: u.platformRoles, mfaEnrolled: !!u.mfa?.verifiedAt, locked: !!(u.lockedUntil && u.lockedUntil > ctx.now()), lastLoginAt: u.lastLoginAt ?? null, createdAt: u.createdAt ?? null, self: u._id === ctx.actor.userId })) };
+    } },
+  ...(['deactivate', 'activate', 'mfa-reset', 'unlock'] as const).map((action): Route => ({
+    method: 'POST', path: `/platform/users/:id/${action}`, permission: 'platform.user.manage', scope: 'platform', audit: `platform.user.${action.replace('-', '_')}`, rate: 'mutation',
+    summary: { deactivate: 'Deactivate another platform account (signs it out; never yourself or the last active Super Admin)', activate: 'Re-activate a platform account', 'mfa-reset': 'Reset another admin\'s 2FA after a lost phone (they set it up again at next sign-in)', unlock: 'Unlock a platform account locked by failed sign-ins' }[action],
+    reqs: ['FR-AUTH-003'], body: s.object({ reason: s.string({ min: 3, max: 300 }) }),
+    async handler(ctx, { params, body }) {
+      const u = await ctx.app.store.findOne('platform_users', { _id: params.id }); if (!u) throw new AppError('NOT_FOUND', 'Platform account not found');
+      if (action !== 'unlock' && action !== 'activate' && u._id === ctx.actor.userId) throw new AppError('FORBIDDEN', 'This must be done by another Super Admin.');
+      const signOut = () => ctx.app.store.updateMany('platform_sessions', { userId: u._id, revokedAt: null }, { $set: { revokedAt: ctx.now() } });
+      if (action === 'deactivate') {
+        if (u.status !== 'active') throw new AppError('INVALID_STATE_TRANSITION', 'This account is not active.');
+        const others = (await ctx.app.store.find('platform_users', {})).filter((x) => x._id !== u._id && x.status === 'active' && (x.platformRoles as string[]).includes('super_admin'));
+        if (!others.length) throw new AppError('CONFLICT', 'You cannot deactivate the last active Super Admin.');
+        await ctx.app.store.updateOne('platform_users', { _id: u._id }, { $set: { status: 'disabled' } }); await signOut();
+      } else if (action === 'activate') {
+        if (u.status === 'active') throw new AppError('INVALID_STATE_TRANSITION', 'This account is already active.');
+        await ctx.app.store.updateOne('platform_users', { _id: u._id }, { $set: { status: 'active', failedLogins: 0, lockedUntil: null } });
+      } else if (action === 'mfa-reset') {
+        await ctx.app.store.updateOne('platform_users', { _id: u._id }, { $set: { mfa: null } }); await signOut();
+      } else await ctx.app.store.updateOne('platform_users', { _id: u._id }, { $set: { failedLogins: 0, lockedUntil: null } });
+      ctx.setAudit({ resource: { type: 'platform_user', id: u._id }, reason: body.reason, before: { status: u.status, mfaEnrolled: !!u.mfa?.verifiedAt }, after: { action } });
+      return { ok: true };
+    },
+  })),
   {
     method: 'GET', path: '/platform/tenants', permission: 'platform.tenant.read', scope: 'platform', audit: { none: 'metadata list without tenant content' }, rate: 'read', summary: 'Tenant list: state, plan and usage metadata only', reqs: ['FR-TEN-004'],
     async handler(ctx) {

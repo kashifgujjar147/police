@@ -21,6 +21,7 @@
         "test": "tsx --test --test-concurrency=1 \"tests/**/*.test.ts\"",
         "test:unit": "tsx --test \"tests/unit/**/*.test.ts\"",
         "test:e2e:web": "tsx tests/e2e-web/run.ts",
+        "test:e2e:pwa": "tsx tests/e2e-web/pwa-field.ts",
         "lint:terms": "tsx scripts/terminology-lint.ts",
         "lint:boundaries": "tsx scripts/boundary-lint.ts",
         "openapi": "tsx scripts/openapi.ts",

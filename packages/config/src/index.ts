@@ -19,6 +19,12 @@ export interface AppConfig {
   runWorkerInProcess: boolean; webDir: string;
   /** Local development only: skip the second factor at sign-in (see mfaBypassActive). Always false outside development. */
   mfaDevBypass: boolean;
+  /**
+   * Temporary owner decision (2026-11-23): AUTH_MFA_LOGIN_DISABLED=true skips ONLY the second factor at sign-in, in any
+   * environment including production. Unlike the development bypass it keeps lockout, setup/invitation codes and bootstrap
+   * behaviour unchanged. Remove the variable to restore MFA.
+   */
+  mfaLoginDisabled: boolean;
 }
 export class ConfigError extends Error {}
 
@@ -48,6 +54,8 @@ export function mfaDevBypassFromEnv(env: Record<string, string | undefined>): bo
 }
 /** Runtime guard used by every sign-in route: re-checks the environment so a config override cannot enable it elsewhere. */
 export const mfaBypassActive = (config: Pick<AppConfig, 'env' | 'mfaDevBypass'>): boolean => config.env === 'development' && config.mfaDevBypass === true;
+/** Sign-in routes only: true when the second factor is skipped (development bypass, or AUTH_MFA_LOGIN_DISABLED=true). */
+export const mfaLoginSkipped = (config: Pick<AppConfig, 'env' | 'mfaDevBypass' | 'mfaLoginDisabled'>): boolean => mfaBypassActive(config) || config.mfaLoginDisabled === true;
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
   const mode = (env.NODE_ENV ?? 'development') as AppConfig['env'];
@@ -98,6 +106,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     smtp: env.SMTP_HOST ? { host: env.SMTP_HOST, port: Number(env.SMTP_PORT ?? 1025), from: env.SMTP_FROM ?? 'no-reply@smartforce360.invalid' } : null,
     bootstrap, runWorkerInProcess: env.WORKER_IN_PROCESS !== 'false', webDir: env.WEB_DIR ?? './apps/web/dist',
     mfaDevBypass: mode === 'development' && mfaDevBypassFromEnv(env),
+    mfaLoginDisabled: mode !== 'test' && env.AUTH_MFA_LOGIN_DISABLED === 'true',
   };
 }
 export const testConfig = (over: Partial<AppConfig> = {}): AppConfig => ({ ...loadConfig({ NODE_ENV: 'test', STORE: 'memory', RATE_LIMITS: 'off' }), ...over });

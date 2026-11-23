@@ -89,3 +89,24 @@ dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; ma
 .pw { position: relative; } .pw input { padding-inline-end: 44px; }
 .pw-toggle { position: absolute; inset-inline-end: 3px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 32px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; min-height: 0; }
 .pw-toggle:hover { color: var(--text); background: var(--surface-2); }
+/* PWA install button and field "My duty" */
+.install { border-color: var(--brand); color: var(--brand); background: transparent; }
+.topbar .install { color: inherit; border-color: currentColor; }
+.duty-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+.duty-row:first-of-type { border-top: 0; }
+.ok-text { color: #1b6e3a; font-weight: 600; }
+.sos-box { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 4px 0 14px; }
+.sos-btn { width: 120px; height: 120px; border-radius: 50%; border: 0; background: #b3261e; color: #fff; font-size: 30px; font-weight: 800; letter-spacing: 2px; box-shadow: 0 4px 14px rgba(179, 38, 30, .35); cursor: pointer; }
+.sos-btn:disabled { opacity: .7; }
+body { padding-bottom: env(safe-area-inset-bottom); }
+/* Phones: the top bar wraps instead of widening the page (it pushed every page and dialog off-screen) */
+.shell > * { min-width: 0; }
+@media (max-width: 640px) {
+  .topbar { flex-wrap: wrap; gap: 6px 8px; padding: 8px 10px; }
+  .topbar .spacer { flex-basis: 100%; height: 0; }
+  .topbar .small { max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar button, .topbar select, .topbar a { padding: 4px 8px; min-height: 32px; }
+  .main { padding: 12px; }
+  .page-head { flex-wrap: wrap; gap: 8px; }
+  .duty-row { flex-wrap: wrap; }
+}

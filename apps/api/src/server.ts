@@ -61,7 +61,7 @@ export function startServer(app: App): Promise<Server> {
       if (!file.startsWith(webRoot) || !existsSync(file) || !statSync(file).isFile()) file = join(webRoot, 'index.html');
       if (!existsSync(file)) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Web portal is not built. Run: npm run build:web'); return; }
       const html = file.endsWith('index.html');
-      res.writeHead(200, { 'Content-Type': MIME[extname(file)] ?? 'application/octet-stream', ...securityHeaders(cfg), 'Content-Security-Policy': WEB_CSP, 'Cache-Control': html ? 'no-store' : 'public, max-age=3600' });
+      res.writeHead(200, { 'Content-Type': MIME[extname(file)] ?? 'application/octet-stream', ...securityHeaders(cfg), 'Content-Security-Policy': WEB_CSP, 'Cache-Control': html ? 'no-store' : /[\\/](sw\.js|app\.js|app\.css|manifest\.webmanifest)$/.test(file) ? 'no-cache' : 'public, max-age=3600' }); // app code always revalidated so deploys show at once
       res.end(method === 'HEAD' ? undefined : readFileSync(file));
     } catch (e) {
       app.log.error('server adapter error', { error: (e as Error).message });

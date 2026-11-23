@@ -223,7 +223,7 @@ const routes: Route[] = [
     async handler(ctx, { params, body }) { const d = await ctx.col('devices').must(params.id!, 'Device'); ctx.assertScope(d.unitId, 'Device'); const out = await ctx.col('devices').update(d._id, { $set: { label: body.label } }); ctx.setAudit({ resource: { type: 'device', id: d._id }, after: body }); return out; } },
   {
     method: 'POST', path: '/devices/register', permission: 'session', scope: 'own', audit: 'device.register', rate: 'mutation', summary: 'Bind a device key pair (generated on the device) to the signed-in staff member', reqs: ['FR-DEV-001', 'FR-SUB-001'],
-    body: s.object({ publicKey: s.string({ min: 60, max: 400, trim: false }), platform: s.enum(['android', 'ios']), osVersion: s.string({ max: 40 }), model: s.optional(s.string({ max: 80 })), appVersion: s.string({ max: 20, pattern: /^\d+\.\d+(\.\d+)?$/ }) }),
+    body: s.object({ publicKey: s.string({ min: 60, max: 400, trim: false }), platform: s.enum(['android', 'ios', 'web']), osVersion: s.string({ max: 40 }), model: s.optional(s.string({ max: 80 })), appVersion: s.string({ max: 20, pattern: /^\d+\.\d+(\.\d+)?$/ }) }),
     async handler(ctx, { body }) {
       if (!ctx.actor.staffMemberId) throw new AppError('FORBIDDEN', 'Only staff members can register a device.');
       let pem: string;

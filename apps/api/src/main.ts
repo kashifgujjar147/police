@@ -8,6 +8,7 @@ async function main() {
   try { config = loadConfig(); } catch (e) { if (e instanceof ConfigError) { console.error(e.message); process.exit(78); } throw e; }
   const app = await createApp({ config });
   if (config.mfaDevBypass) app.log.warn('DEVELOPMENT MFA BYPASS is on (AUTH_MFA_REQUIRED=false): admin sign-in is password-only. Never use outside local development.', {});
+  if (config.mfaLoginDisabled) app.log.warn('MFA AT SIGN-IN IS DISABLED (AUTH_MFA_LOGIN_DISABLED=true): every sign-in is password-only. Remove the variable to restore two-factor authentication.', {});
   if (config.demoMode) app.log.warn('DEMO MODE is on: this deployment may contain labelled demonstration data. Never enable in production.', {});
   const server = await startServer(app);
   const stopBg = config.runWorkerInProcess ? startBackground(app) : () => {};
