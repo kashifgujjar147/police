@@ -56,8 +56,8 @@ export class MongoStore implements Store {
     return cur.toArray();
   }
   count(c: string, filter: Filter): Promise<number> { return this.db.collection(c).countDocuments(filter, this.opts()); }
-  updateOne(c: string, filter: Filter, update: Update, o: { system?: boolean } = {}): Promise<Doc | null> {
-    this.guard(c, o.system);
+  async updateOne(c: string, filter: Filter, update: Update, o: { system?: boolean } = {}): Promise<Doc | null> {
+    this.guard(c, o.system); // async: an append-only refusal is a rejected promise (as in MemoryStore), never a synchronous throw
     return this.wrap(c, () => this.db.collection(c).findOneAndUpdate(filter, this.toUpdate(update), { ...this.opts(), returnDocument: 'after' }));
   }
   async updateMany(c: string, filter: Filter, update: Update, o: { system?: boolean } = {}): Promise<number> {
