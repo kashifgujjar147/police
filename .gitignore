@@ -1,0 +1,14 @@
+# dependencies and build output
+node_modules/
+apps/web/dist/
+# secrets — never commit
+.env
+.env.*
+!.env.example
+railway.env
+# local data and backups
+data/
+*.bak-*
+*.log
+# generated test artefacts
+tests/e2e-web/screenshots/

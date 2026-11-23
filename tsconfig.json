@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": false,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"],
+    "paths": {
+      "@sf/contracts": ["./packages/contracts/src/index.ts"],
+      "@sf/permissions": ["./packages/permissions/src/index.ts"],
+      "@sf/domain": ["./packages/domain/src/index.ts"],
+      "@sf/domain/node": ["./packages/domain/src/node.ts"],
+      "@sf/config": ["./packages/config/src/index.ts"],
+      "@sf/i18n": ["./packages/i18n/src/index.ts"],
+      "@sf/mobile-core": ["./packages/mobile-core/src/index.ts"],
+      "@sf/kernel": ["./modules/kernel/index.ts"],
+      "@sf/app": ["./apps/api/src/app.ts"]
+    }
+  },
+  "include": ["packages", "modules", "apps/api", "apps/worker", "scripts", "tests", "tools"],
+  "exclude": ["node_modules", "apps/web", "apps/mobile", "dist"]
+}

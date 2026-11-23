@@ -1,0 +1,8 @@
+# Single-container development / pilot stack with the file store (no MongoDB). Not for multi-instance production.
+services:
+  app:
+    build: { context: ../.., dockerfile: infrastructure/docker/Dockerfile }
+    environment: { NODE_ENV: development, STORE: file, DATA_DIR: /var/lib/smartforce360, WORKER_IN_PROCESS: "true", DEMO_MODE: "true", PUBLIC_URL: "http://localhost:8080" }
+    ports: ["8080:8080"]
+    volumes: [dev-data:/var/lib/smartforce360]
+volumes: { dev-data: {} }

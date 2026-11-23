@@ -1,0 +1,17 @@
+$ npm run seed:demo   (STORE=file, fresh DATA_DIR)
+$ npx tsx apps/api/src/main.ts   (PORT=8099)
+$ npm run simulate -- --url http://localhost:8099 --users sim-1,sim-2 --minutes 1 --offline-every 2 --sos sim-2
+sim-2: start → accepted
+sim-1: start → accepted
+sim-2: OFFLINE sent=0 queued=2
+sim-1: OFFLINE sent=0 queued=2
+sim-2: SOS → pending_offline
+sim-1: online  sent=4 queued=0
+sim-2: online  sent=4 queued=0
+sim-1: ended duty, queue empty=true
+sim-2: ended duty, queue empty=true
+
+$ GET /api/v1/incidents  (as cmd-01)
+INC-2026-000003 personal_safety critical new Simulator SOS      <- raised while offline, delivered on reconnect
+INC-2026-000002 hazard medium new Demo: section of perimeter fence is damaged...
+INC-2026-000001 personal_safety critical new Demo SOS: aggressive visitor at the gate

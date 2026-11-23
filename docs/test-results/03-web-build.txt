@@ -1,0 +1,2 @@
+web build ok → apps/web/dist (1616 KiB incl. source map)
+openapi: 202 operations on 166 paths → docs/openapi.json

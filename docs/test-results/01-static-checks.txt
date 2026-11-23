@@ -1,0 +1,18 @@
+
+> smartforce360@0.1.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
+
+> smartforce360@0.1.0 typecheck:web:offline
+> tsc -p apps/web/tsconfig.sandbox.json --noEmit
+
+
+> smartforce360@0.1.0 lint:terms
+> tsx scripts/terminology-lint.ts
+
+terminology lint ok (461 keys in EN and AR, 17 forbidden terms checked)
+
+> smartforce360@0.1.0 lint:boundaries
+> tsx scripts/boundary-lint.ts
+
+boundary lint ok

@@ -1,0 +1,56 @@
+{
+    "name": "smartforce360",
+    "version": "0.1.0",
+    "private": true,
+    "description": "SmartForce 360 â€” Field Force Management & Accountability Platform",
+    "type": "module",
+    "engines": {
+        "node": ">=22"
+    },
+    "scripts": {
+        "dev": "npm run build:web && cross-env NODE_ENV=development AUTH_MFA_REQUIRED=false tsx apps/api/src/main.ts",
+        "dev:mfa": "npm run build:web && cross-env NODE_ENV=development AUTH_MFA_REQUIRED=true tsx apps/api/src/main.ts",
+        "dev:no-mfa": "npm run build:web && cross-env NODE_ENV=development AUTH_MFA_REQUIRED=false tsx apps/api/src/main.ts",
+        "start": "tsx apps/api/src/main.ts",
+        "worker": "tsx apps/worker/src/main.ts",
+        "seed:demo": "tsx scripts/seed-demo.ts",
+        "platform:admin": "tsx scripts/platform-admin.ts",
+        "build:web": "tsx scripts/build-web.ts",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "typecheck:web": "tsc -p apps/web/tsconfig.json --noEmit",
+        "test": "tsx --test --test-concurrency=1 \"tests/**/*.test.ts\"",
+        "test:unit": "tsx --test \"tests/unit/**/*.test.ts\"",
+        "test:e2e:web": "tsx tests/e2e-web/run.ts",
+        "lint:terms": "tsx scripts/terminology-lint.ts",
+        "lint:boundaries": "tsx scripts/boundary-lint.ts",
+        "openapi": "tsx scripts/openapi.ts",
+        "trace": "tsx scripts/trace.ts",
+        "simulate": "tsx tools/field-simulator.ts",
+        "load": "tsx tests/load/ingest-load.ts",
+        "verify": "npm run typecheck && npm run typecheck:web && npm run lint:terms && npm run lint:boundaries && npm test && npm run build:web && npm run openapi && npm run trace",
+        "secrets": "tsx scripts/secrets.ts",
+        "test:mongo": "TEST_STORE=mongo tsx --test --test-concurrency=1 tests/integration/journeys.test.ts",
+        "verify:restore": "tsx scripts/verify-restore.ts",
+        "test:mobile-core": "tsx --test tests/unit/mobile-core.test.ts",
+        "typecheck:web:offline": "tsc -p apps/web/tsconfig.sandbox.json --noEmit",
+        "matrix": "tsx scripts/permission-matrix.ts"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "cross-env": "^10.1.0",
+        "esbuild": "0.28.2",
+        "playwright": "1.64.1",
+        "react": "19.2.8",
+        "react-dom": "19.2.8",
+        "tsx": "4.23.12",
+        "typescript": "6.0.3"
+    },
+    "optionalDependencies": {
+        "mongodb": "^6.10.0"
+    },
+    "allowScripts": {
+        "esbuild@0.28.2": true
+    }
+}

@@ -1,0 +1,14 @@
+# Never send local installs, secrets, data or backups into the image build
+node_modules
+**/node_modules
+.env
+.env.*
+!.env.example
+railway.env
+data
+**/*.bak-*
+*.log
+.git
+apps/web/dist
+tests/e2e-web/screenshots
+docs/test-results

@@ -1,0 +1,19 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      mongo: { image: mongo:7, ports: ["27017:27017"], options: "--health-cmd \"mongosh --eval 'db.runCommand({ping:1})'\" --health-interval 5s" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci || npm install   # no lockfile is shipped; commit one after the first install
+      - run: npm run verify                    # typecheck, lints, all tests, web build, trace
+      - run: npm run typecheck:web
+      - run: npm audit --audit-level=critical   # FR-NFR-005: fail on critical known vulnerabilities
+      - run: npx playwright install --with-deps chromium && npm run test:e2e:web
+        env: { CHROME_PATH: "" }
+      - run: npm run test:mongo
+        env: { MONGO_URL: "mongodb://localhost:27017/?directConnection=true" }

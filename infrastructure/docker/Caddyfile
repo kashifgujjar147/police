@@ -1,0 +1,8 @@
+# Replace the host name. Caddy obtains a free Let's Encrypt certificate automatically.
+smartforce.example.org {
+	encode gzip
+	reverse_proxy api:8080 {
+		flush_interval -1   # do not buffer server-sent events
+	}
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}

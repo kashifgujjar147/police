@@ -1,0 +1,3 @@
+$ DATA_DIR=/tmp/vr STORE=file SEED_STAFF=3 npm run seed:demo
+$ DATA_DIR=/tmp/vr STORE=file npm run verify:restore
+demo: audit ok (149); staff=16 assignments=10 incidents=2

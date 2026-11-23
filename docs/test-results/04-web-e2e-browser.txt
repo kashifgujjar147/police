@@ -1,0 +1,33 @@
+browser launched
+… login page renders and is accessible
+… wrong password shows the neutral error
+… commander signs in; overview shows live counters and demo banner
+… SOS banner is shown and opens the incident
+… command centre lists people with state and freshness; stale person is not shown as on duty
+… location history requires a purpose and shows points
+… alerts list shows the late start and the SOS; acknowledging updates state
+… duty planner shows today's published assignments with acknowledgement state
+… report runs with as-of, timezone and basis labels
+… Arabic switches the whole interface to right-to-left
+… field officer sees no command centre (permission-aware navigation)
+… owner signs in with MFA; audit integrity verifies; staff activation code is shown once
+… help page offers support contact and a secret-free diagnostics bundle
+… narrow (mobile) viewport keeps the portal usable
+… no uncaught page errors or console errors
+ok     login page renders and is accessible
+ok     wrong password shows the neutral error
+ok     commander signs in; overview shows live counters and demo banner
+ok     SOS banner is shown and opens the incident
+ok     command centre lists people with state and freshness; stale person is not shown as on duty
+ok     location history requires a purpose and shows points
+ok     alerts list shows the late start and the SOS; acknowledging updates state
+ok     duty planner shows today's published assignments with acknowledgement state
+ok     report runs with as-of, timezone and basis labels
+ok     Arabic switches the whole interface to right-to-left
+ok     field officer sees no command centre (permission-aware navigation)
+ok     owner signs in with MFA; audit integrity verifies; staff activation code is shown once
+ok     help page offers support contact and a secret-free diagnostics bundle
+ok     narrow (mobile) viewport keeps the portal usable
+ok     no uncaught page errors or console errors
+
+web e2e: 15/15 passed; screenshots in tests/e2e-web/screenshots

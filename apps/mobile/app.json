@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "SmartForce 360",
+    "slug": "smartforce360",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.example.smartforce360",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "SmartForce 360 records your location only while you are on duty, so your supervisor can see you are safe at your post.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "While you are on duty, SmartForce 360 keeps recording your location when the app is in the background. Recording stops when you end duty.",
+        "NSCameraUsageDescription": "The camera is used to scan checkpoint QR codes.",
+        "UIBackgroundModes": ["location"]
+      }
+    },
+    "android": {
+      "package": "com.example.smartforce360",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "ACCESS_BACKGROUND_LOCATION", "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_LOCATION", "CAMERA", "VIBRATE", "POST_NOTIFICATIONS"]
+    },
+    "plugins": [
+      ["expo-location", { "isAndroidBackgroundLocationEnabled": true, "isAndroidForegroundServiceEnabled": true }],
+      ["expo-camera", { "cameraPermission": "The camera is used to scan checkpoint QR codes." }],
+      "expo-secure-store", "expo-localization"
+    ],
+    "extra": { "apiBaseUrl": "http://10.0.2.2:8080" }
+  }
+}

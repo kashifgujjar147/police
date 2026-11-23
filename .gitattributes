@@ -1,0 +1,4 @@
+# Keep LF everywhere (Linux builds on Railway need LF shell scripts and Dockerfile)
+* text=auto eol=lf
+*.png binary
+*.jpg binary

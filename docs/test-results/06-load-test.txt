@@ -1,0 +1,23 @@
+setting up 300 on-duty staff…
+setup 2.6 s
+{
+  "staff": 300,
+  "batches": 3000,
+  "pointsAccepted": 30000,
+  "pointsPerSec": 1572,
+  "ingestBatchMs": {
+    "p50": "6.5",
+    "p95": "10.7",
+    "p99": "13.3"
+  },
+  "latestStates": 1000,
+  "locationsLatestMs": {
+    "p50": "4.0",
+    "p95": "5.9"
+  },
+  "dashboardMs": {
+    "p50": "2.2",
+    "p95": "3.1"
+  },
+  "store": "memory (single process)"
+}

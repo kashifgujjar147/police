@@ -1,0 +1,38 @@
+# Production-like stack: MongoDB replica set (transactions), API, separate worker, Caddy TLS proxy, Mailpit (optional, dev email).
+# Start:   cp .env.example .env  (fill secrets: npm run secrets)  &&  docker compose -f infrastructure/docker/docker-compose.yml up -d --build
+services:
+  mongo:
+    image: mongo:7
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    volumes: [mongo-data:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}).ok }"]
+      interval: 10s
+      retries: 10
+    restart: unless-stopped
+  api:
+    build: { context: ../.., dockerfile: infrastructure/docker/Dockerfile }
+    env_file: ../../.env
+    environment: { STORE: mongo, MONGO_URL: "mongodb://mongo:27017/?replicaSet=rs0", WORKER_IN_PROCESS: "false", TRUST_PROXY: "true" }
+    depends_on: { mongo: { condition: service_healthy } }
+    volumes: [files:/var/lib/smartforce360]
+    restart: unless-stopped
+  worker:
+    build: { context: ../.., dockerfile: infrastructure/docker/Dockerfile }
+    command: ["npx", "tsx", "apps/worker/src/main.ts"]
+    env_file: ../../.env
+    environment: { STORE: mongo, MONGO_URL: "mongodb://mongo:27017/?replicaSet=rs0" }
+    depends_on: { mongo: { condition: service_healthy } }
+    volumes: [files:/var/lib/smartforce360]
+    restart: unless-stopped
+  proxy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro, caddy-data:/data]
+    depends_on: [api]
+    restart: unless-stopped
+  mailpit:
+    image: axllent/mailpit
+    profiles: ["dev"]
+    ports: ["8025:8025"]
+volumes: { mongo-data: {}, files: {}, caddy-data: {} }
