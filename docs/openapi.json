@@ -3080,6 +3080,148 @@
     }
    }
   },
+  "/api/v1/platform/tenants/{id}/users": {
+   "get": {
+    "summary": "Accounts of an organisation: name, username, email, roles, status (no password data)",
+    "tags": [
+     "tenancy"
+    ],
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "x-permission": "platform.tenant.users",
+    "x-scope": "platform",
+    "x-audit": "platform.tenant.users.read",
+    "x-rate-class": "read",
+    "x-device-bound": false,
+    "x-requirements": [
+     "FR-AUTH-006"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "$ref": "#/components/responses/Error"
+     },
+     "403": {
+      "$ref": "#/components/responses/Error"
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "429": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/v1/platform/tenants/{id}/users/{userId}/reset-password": {
+   "post": {
+    "summary": "Set a new password for an organisation account (generated unless given); returned once; signs the user out and unlocks the account",
+    "tags": [
+     "tenancy"
+    ],
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "userId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+         "reason": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 300
+         },
+         "password": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+         }
+        },
+        "required": [
+         "reason"
+        ]
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "x-permission": "platform.tenant.users",
+    "x-scope": "platform",
+    "x-audit": "platform.tenant.user.password_reset",
+    "x-rate-class": "mutation",
+    "x-device-bound": false,
+    "x-requirements": [
+     "FR-AUTH-007"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "$ref": "#/components/responses/Error"
+     },
+     "403": {
+      "$ref": "#/components/responses/Error"
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "429": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
   "/api/v1/platform/plans": {
    "get": {
     "summary": "Plan catalogue",

@@ -6,7 +6,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { App, AppError, Ctx, type Doc, Reply, type Route, created, deepMerge, paginate, randomToken, s, sha256, signJwt } from '@sf/kernel';
-import { revokeSessions } from '../identity/index.ts';
+import { checkPasswordPolicy, isPrivileged, revokeSessions } from '../identity/index.ts';
 import { ensurePlans, planLimits, provisionTenant, usageCounts } from './provision.ts';
 
 const NEUTRAL = 'The sign-in details are not correct.';
@@ -301,6 +301,43 @@ const platformRoutes: Route[] = [
       return { ok: true, planKey: plan.key };
     },
   },
+  // ---------- Organisation accounts (Super Admin only; owner decision 2026-11-23) ----------
+  // Passwords are stored only as one-way hashes, so they can never be shown. The Super Admin can see who the accounts are
+  // and set a new password; the new password is returned once, the user's sessions are signed out, and both the Platform
+  // and the organisation audit logs record the reset.
+  { method: 'GET', path: '/platform/tenants/:id/users', permission: 'platform.tenant.users', scope: 'platform', audit: 'platform.tenant.users.read', rate: 'read',
+    summary: 'Accounts of an organisation: name, username, email, roles, status (no password data)', reqs: ['FR-AUTH-006'],
+    async handler(ctx, { params }) {
+      const t = await ctx.app.store.findOne('tenants', { _id: params.id }); if (!t || t.status === 'deleted') throw new AppError('NOT_FOUND', 'Tenant not found');
+      const tc = ctx.app.systemCtx(t, 'platform-tenant-users');
+      const [users, ms, roles, staff] = await Promise.all([tc.col('users').find({}, { sort: { createdAt: 1 }, limit: 5000 }), tc.col('memberships').find({}), tc.col('roles').find({}), tc.col('staff_members').find({})]);
+      ctx.setAudit({ resource: { type: 'tenant', id: t._id }, detail: { count: users.length } });
+      return { tenant: { id: t._id, name: t.name, slug: t.slug }, items: users.map((u) => {
+        const m = ms.find((x) => x.userId === u._id); const st = m?.staffMemberId ? staff.find((x) => x._id === m.staffMemberId) : null;
+        const rs = roles.filter((r) => (m?.roleIds ?? []).includes(r._id));
+        return { id: u._id, username: u.username, displayName: st?.displayName ?? u.username, email: u.email ?? null, roles: rs.map((r) => r.key ?? r.name), roleNames: rs.map((r) => r.name), owner: !!m && m._id === t.ownerMembershipId,
+          status: u.status, activated: !!u.passwordHash, mfaEnabled: !!u.mfaEnabled, locked: !!(u.lockedUntil && u.lockedUntil > ctx.now()), lastLoginAt: u.lastLoginAt ?? null, createdAt: u.createdAt ?? null };
+      }) };
+    } },
+  { method: 'POST', path: '/platform/tenants/:id/users/:userId/reset-password', permission: 'platform.tenant.users', scope: 'platform', audit: 'platform.tenant.user.password_reset', rate: 'mutation',
+    summary: 'Set a new password for an organisation account (generated unless given); returned once; signs the user out and unlocks the account', reqs: ['FR-AUTH-007'],
+    body: s.object({ reason: s.string({ min: 3, max: 300 }), password: s.optional(s.string({ min: 1, max: 200, trim: false })) }),
+    async handler(ctx, { params, body }) {
+      const t = await ctx.app.store.findOne('tenants', { _id: params.id }); if (!t || t.status === 'deleted') throw new AppError('NOT_FOUND', 'Tenant not found');
+      const tc = ctx.app.systemCtx(t, 'platform-password-reset', await ctx.app.settingsFor(t)); tc.actor = ctx.actor;
+      const user = await tc.col('users').get(params.userId!); if (!user) throw new AppError('NOT_FOUND', 'User not found');
+      const membership = await tc.col('memberships').findOne({ userId: user._id });
+      const password = body.password ?? `Sf-${randomBytes(12).toString('base64url')}`;
+      checkPasswordPolicy(password, membership ? await isPrivileged(tc, membership) : true, tc);
+      const firstPassword = !user.passwordHash;
+      await tc.col('users').update(user._id, { $set: { passwordHash: await ctx.app.hasher.hash(password), failedLogins: 0, lockedUntil: null, passwordChangedAt: ctx.now(),
+        ...(firstPassword && user.status === 'invited' ? { status: 'active', activatedAt: ctx.now() } : {}) }, $inc: { sessionVersion: 1 } });
+      if (firstPassword) await tc.col('invitations').updateMany({ userId: user._id, usedAt: null, revokedAt: null }, { $set: { revokedAt: ctx.now() } });
+      await revokeSessions(tc, { userId: user._id }, 'platform_password_reset');
+      await ctx.app.writeAudit(tc, { action: 'user.password.reset_by_platform', resource: { type: 'user', id: user._id }, reason: body.reason, detail: { platformUserId: ctx.actor.userId, generated: !body.password } });
+      ctx.setAudit({ resource: { type: 'user', id: user._id }, reason: body.reason, detail: { tenantId: t._id, username: user.username, generated: !body.password } });
+      return { ok: true, username: user.username, tenant: t.slug, password };
+    } },
   { method: 'GET', path: '/platform/plans', permission: 'platform.tenant.read', scope: 'platform', audit: { none: 'catalogue read' }, rate: 'read', summary: 'Plan catalogue',
     async handler(ctx) { return { items: await ctx.app.store.find('plans', {}, { sort: { key: 1 } }) }; } },
   {

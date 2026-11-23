@@ -69,6 +69,7 @@ export const PERMISSION_KEYS = Object.keys(PERMISSION_GRANTS).sort();
 export const PLATFORM_PERMISSION_KEYS = [
   'platform.tenant.read', 'platform.tenant.create', 'platform.tenant.update', 'platform.tenant.lifecycle', 'platform.ops.read',
   'platform.support.request', 'platform.plan.assign', 'platform.integration.manage', 'platform.user.manage',
+  'platform.tenant.users', // Super Admin only: list an organisation's accounts and reset their passwords (owner decision, 2026-11-23)
 ] as const;
 
 export function defaultRolePermissions(role: RoleKey): string[] {

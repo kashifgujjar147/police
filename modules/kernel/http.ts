@@ -265,7 +265,7 @@ export class App {
       const user = session && !session.revokedAt && session.expiresAt > now ? await this.store.findOne('platform_users', { _id: claims.sub }) : null;
       if (!user || user.status !== 'active') throw new AppError('UNAUTHENTICATED', 'Sign in to continue.');
       const perms = new Set<string>(user.platformRoles.includes('super_admin')
-        ? ['platform.tenant.read', 'platform.tenant.create', 'platform.tenant.update', 'platform.tenant.lifecycle', 'platform.ops.read', 'platform.support.request', 'platform.plan.assign', 'platform.integration.manage', 'platform.user.manage']
+        ? ['platform.tenant.read', 'platform.tenant.create', 'platform.tenant.update', 'platform.tenant.lifecycle', 'platform.ops.read', 'platform.support.request', 'platform.plan.assign', 'platform.integration.manage', 'platform.user.manage', 'platform.tenant.users']
         : ['platform.tenant.read', 'platform.ops.read', 'platform.support.request']);
       const actor: Actor = { type: 'platform', userId: user._id, roleKeys: [], platformRoles: user.platformRoles, permissions: perms, scopeUnitIds: [], assignedUnitIds: [], sessionId: session!._id };
       if (route.scope === 'platform' || route.permission === 'platform-session') {

@@ -72,7 +72,7 @@ async function userProfile(ctx: Ctx, user: Doc, membership: Doc) {
     noticeVersion: notice?.version ?? null, noticeAcknowledged: !notice || !!ack,
   };
 }
-const isPrivileged = async (ctx: Ctx, membership: Doc) => (await ctx.col('roles').find({ _id: { $in: membership.roleIds } })).some((r) => (PRIVILEGED_ROLES as string[]).includes(r.key) || ctx.settings.auth.mfaRequiredRoles.includes(r.key));
+export const isPrivileged = async (ctx: Ctx, membership: Doc) => (await ctx.col('roles').find({ _id: { $in: membership.roleIds } })).some((r) => (PRIVILEGED_ROLES as string[]).includes(r.key) || ctx.settings.auth.mfaRequiredRoles.includes(r.key));
 
 async function challenge(ctx: Ctx, user: Doc, purpose: 'mfa' | 'enrol', meta: Record<string, unknown>) {
   const token = randomToken(24);
